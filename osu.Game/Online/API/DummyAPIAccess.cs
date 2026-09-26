@@ -145,6 +145,16 @@ namespace osu.Game.Online.API
             }
         }
 
+        public void SetOAuthCredentials(string clientId, string clientSecret)
+        {
+            Endpoints.APIClientID = clientId;
+            Endpoints.APIClientSecret = clientSecret;
+        }
+
+        public void RequestOAuthAuthorization()
+        {
+        }
+
         public void AuthenticateSecondFactor(string code)
         {
             var request = new VerifySessionRequest(code);

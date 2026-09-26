@@ -115,6 +115,10 @@ namespace osu.Game.Online.API
         /// <param name="password">The user's password.</param>
         void Login(string username, string password);
 
+        void SetOAuthCredentials(string clientId, string clientSecret);
+
+        void RequestOAuthAuthorization();
+
         /// <summary>
         /// The <see cref="SessionVerificationMethod"/> requested by the server to complete verification.
         /// </summary>

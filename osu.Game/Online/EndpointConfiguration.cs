@@ -18,6 +18,8 @@ namespace osu.Game.Online
         /// </summary>
         public string APIClientID { get; set; } = string.Empty;
 
+        public bool UseAuthorizationCode { get; set; }
+
         /// <summary>
         /// The base URL for the website. Does not include a trailing slash.
         /// </summary>

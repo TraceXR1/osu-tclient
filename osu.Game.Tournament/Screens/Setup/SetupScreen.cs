@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Drawing;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -44,6 +45,10 @@ namespace osu.Game.Tournament.Screens.Setup
 
         private readonly IBindable<APIUser> localUser = new Bindable<APIUser>();
         private Bindable<Size> windowSize = null!;
+        private ApiCredentialsControl credentials = null!;
+        private readonly IBindable<APIState> apiState = new Bindable<APIState>();
+        [Resolved]
+        private TournamentGameBase tournamentGame { get; set; } = null!;
 
         [BackgroundDependencyLoader]
         private void load(FrameworkConfigManager frameworkConfig)
@@ -75,6 +80,24 @@ namespace osu.Game.Tournament.Screens.Setup
             localUser.BindValueChanged(_ => Schedule(reload));
             stableInfo.OnStableInfoSaved += () => Schedule(reload);
             reload();
+            apiState.BindTo(api.State);
+            apiState.BindValueChanged(_ => Schedule(updateAuthenticationDescription), true);
+            tournamentGame.SavingChanges += saveCredentials;
+        }
+
+        private void updateAuthenticationDescription()
+        {
+            credentials.Description = api.State.Value == APIState.Online
+                ? "Authenticated using client ID and secret!"
+                : "In order to access API please input your valid client ID and secret into the fields";
+        }
+
+        private void saveCredentials() => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
+
+        protected override void Dispose(bool isDisposing)
+        {
+            tournamentGame.SavingChanges -= saveCredentials;
+            base.Dispose(isDisposing);
         }
 
         private void reload()
@@ -92,12 +115,18 @@ namespace osu.Game.Tournament.Screens.Setup
                     Description =
                         "The osu!stable installation which is currently being used as a data source. If a source is not found, make sure you have created an empty ipc.txt in your stable cutting-edge installation."
                 },
-                new ActionableInfo
+                credentials = new ApiCredentialsControl(api.Endpoints.APIClientID, api.Endpoints.APIClientSecret)
                 {
-                    Label = "Current user",
-                    ButtonText = "Change sign-in",
+                    Label = "API Credentials",
+                    ButtonText = api.Endpoints.UseAuthorizationCode ? "Login" : "Change sign-in",
                     Action = () =>
                     {
+                        api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
+                        if (api.Endpoints.UseAuthorizationCode)
+                        {
+                            api.RequestOAuthAuthorization();
+                            return;
+                        }
                         api.Logout();
 
                         if (loginOverlay == null)
@@ -111,9 +140,11 @@ namespace osu.Game.Tournament.Screens.Setup
 
                         loginOverlay.State.Value = Visibility.Visible;
                     },
-                    Value = api.LocalUser.Value.Username,
+                    Value = string.Empty,
                     Failing = api.IsLoggedIn != true,
-                    Description = "In order to access the API and display metadata, signing in is required."
+                    Description = api.State.Value == APIState.Online
+                        ? "Authenticated using client ID and secret!"
+                        : "In order to access API please input your valid client ID and secret into the fields"
                 },
                 new LabelledDropdown<RulesetInfo?>(padded: true)
                 {
@@ -150,6 +181,44 @@ namespace osu.Game.Tournament.Screens.Setup
                     Current = LadderInfo.DisplayTeamSeeds,
                 },
             };
+
+            credentials.Changed += () => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
+        }
+
+        private partial class ApiCredentialsControl : ActionableInfo
+        {
+            public string ClientId => clientId!.Current.Value;
+            public string ClientSecret => clientSecret!.Current.Value;
+            public event Action? Changed;
+
+            private FormPasswordTextBox clientId = null!;
+            private FormPasswordTextBox clientSecret = null!;
+
+            public ApiCredentialsControl(string id, string secret)
+            {
+                clientId = new FormPasswordTextBox { Caption = "Client ID", Current = new Bindable<string>(id) };
+                clientSecret = new FormPasswordTextBox { Caption = "Client Secret", Current = new Bindable<string>(secret) };
+                FlowContainer.Direction = FillDirection.Horizontal;
+                FlowContainer.Remove(Button, false);
+                FlowContainer.Children = new Drawable[]
+                {
+                    new Container { Width = 180, AutoSizeAxes = Axes.Y, Child = clientId },
+                    new Container { Width = 280, AutoSizeAxes = Axes.Y, Child = clientSecret },
+                    Button,
+                };
+                Button.Anchor = Anchor.CentreLeft;
+                Button.Origin = Anchor.CentreLeft;
+                clientId.Current.BindValueChanged(_ => updateCredentials());
+                clientSecret.Current.BindValueChanged(_ => updateCredentials());
+                updateCredentials();
+            }
+
+            private void updateCredentials()
+            {
+                Button.Enabled.Value = !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
+                Changed?.Invoke();
+            }
+
         }
 
         private const float aspect_ratio = 16f / 9f;

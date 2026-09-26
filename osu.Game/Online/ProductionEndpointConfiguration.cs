@@ -9,7 +9,7 @@ namespace osu.Game.Online
         {
             WebsiteUrl = APIUrl = @"https://osu.ppy.sh";
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
-            APIClientID = "5";
+            APIClientID = "55";
             SpectatorUrl = "https://spectator.osu.ppy.sh/spectator";
             MultiplayerUrl = "https://spectator.osu.ppy.sh/multiplayer";
             MetadataUrl = "https://spectator.osu.ppy.sh/metadata";
