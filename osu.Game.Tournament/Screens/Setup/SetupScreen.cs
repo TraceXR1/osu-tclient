@@ -46,6 +46,7 @@ namespace osu.Game.Tournament.Screens.Setup
         private readonly IBindable<APIUser> localUser = new Bindable<APIUser>();
         private Bindable<Size> windowSize = null!;
         private ApiCredentialsControl credentials = null!;
+        private readonly IBindable<APIState> apiState = new Bindable<APIState>();
         [Resolved]
         private TournamentGameBase tournamentGame { get; set; } = null!;
 
@@ -79,7 +80,16 @@ namespace osu.Game.Tournament.Screens.Setup
             localUser.BindValueChanged(_ => Schedule(reload));
             stableInfo.OnStableInfoSaved += () => Schedule(reload);
             reload();
+            apiState.BindTo(api.State);
+            apiState.BindValueChanged(_ => Schedule(updateAuthenticationDescription), true);
             tournamentGame.SavingChanges += saveCredentials;
+        }
+
+        private void updateAuthenticationDescription()
+        {
+            credentials.Description = api.State.Value == APIState.Online
+                ? "Authenticated using client ID and secret!"
+                : "In order to access API please input your valid client ID and secret into the fields";
         }
 
         private void saveCredentials() => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
@@ -132,9 +142,9 @@ namespace osu.Game.Tournament.Screens.Setup
                     },
                     Value = string.Empty,
                     Failing = api.IsLoggedIn != true,
-                    Description = api.Endpoints.UseAuthorizationCode || api.Endpoints.UseClientCredentials
-                        ? "Authenticated with the tournament client's configured OAuth client ID and secret."
-                        : "In order to access the API and display metadata, signing in is required."
+                    Description = api.State.Value == APIState.Online
+                        ? "Authenticated using client ID and secret!"
+                        : "In order to access API please input your valid client ID and secret into the fields"
                 },
                 new LabelledDropdown<RulesetInfo?>(padded: true)
                 {
