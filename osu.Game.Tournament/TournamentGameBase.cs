@@ -35,6 +35,9 @@ namespace osu.Game.Tournament
         private DependencyContainer dependencies = null!;
         private FileBasedIPC ipc = null!;
         private BeatmapLookupCache beatmapCache = null!;
+        public event Action? SavingChanges;
+        private Storage credentialStorage = null!;
+        private const string credentials_filename = "tournament-oauth.json";
 
         protected Task BracketLoadTask => bracketLoadTaskCompletionSource.Task;
 
@@ -48,9 +51,18 @@ namespace osu.Game.Tournament
         public override EndpointConfiguration CreateEndpoints()
         {
             if (UseDevelopmentServer)
-                return base.CreateEndpoints();
+            {
+                var endpoints = base.CreateEndpoints();
+                endpoints.UseAuthorizationCode = true;
+                return endpoints;
+            }
 
-            return new ProductionEndpointConfiguration();
+            return new ProductionEndpointConfiguration
+            {
+                UseAuthorizationCode = true,
+                APIClientID = string.Empty,
+                APIClientSecret = string.Empty,
+            };
         }
 
         public override void SetHost(GameHost host)
@@ -65,6 +77,17 @@ namespace osu.Game.Tournament
         [BackgroundDependencyLoader]
         private void load(Storage baseStorage)
         {
+            credentialStorage = baseStorage;
+            API.Endpoints.APIClientID = string.Empty;
+            API.Endpoints.APIClientSecret = string.Empty;
+            if (baseStorage.Exists(credentials_filename))
+            {
+                using var stream = baseStorage.GetStream(credentials_filename);
+                using var reader = new StreamReader(stream);
+                var credentials = JsonConvert.DeserializeObject<string[]>(reader.ReadToEnd());
+                if (credentials?.Length == 2)
+                    API.SetOAuthCredentials(credentials[0], credentials[1]);
+            }
             Add(initialisationText = new TournamentSpriteText
             {
                 Anchor = Anchor.Centre,
@@ -330,6 +353,10 @@ namespace osu.Game.Tournament
 
         public void SaveChanges()
         {
+            SavingChanges?.Invoke();
+            using (var stream = credentialStorage.CreateFileSafely(credentials_filename))
+            using (var writer = new StreamWriter(stream))
+                writer.Write(JsonConvert.SerializeObject(new[] { API.Endpoints.APIClientID, API.Endpoints.APIClientSecret }));
             if (!bracketLoadTaskCompletionSource.Task.IsCompletedSuccessfully)
             {
                 Logger.Log("Inhibiting bracket save as bracket parsing failed");

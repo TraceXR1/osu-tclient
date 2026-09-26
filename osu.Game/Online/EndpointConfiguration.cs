@@ -19,6 +19,13 @@ namespace osu.Game.Online
         public string APIClientID { get; set; } = string.Empty;
 
         /// <summary>
+        /// Whether this client should authenticate using the OAuth client credentials grant.
+        /// </summary>
+        public bool UseClientCredentials { get; set; }
+
+        public bool UseAuthorizationCode { get; set; }
+
+        /// <summary>
         /// The base URL for the website. Does not include a trailing slash.
         /// </summary>
         public string WebsiteUrl { get; set; } = string.Empty;

@@ -60,6 +60,8 @@ namespace osu.Game.Online.API
         public string SecondFactorCode { get; private set; }
 
         private string password;
+        private bool authorizationRequested;
+        private CancellationTokenSource authorizationCancellation = new CancellationTokenSource();
 
         public IBindable<APIUser> LocalUser => localUserState.User;
 
@@ -70,7 +72,7 @@ namespace osu.Game.Online.API
 
         public Language Language => game.CurrentLanguage.Value;
 
-        protected bool HasLogin => authentication.Token.Value != null || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
+        protected bool HasLogin => (Endpoints.UseAuthorizationCode ? authorizationRequested : authentication.Token.Value != null) || Endpoints.UseClientCredentials || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
 
         private readonly CancellationTokenSource cancellationToken = new CancellationTokenSource();
         private readonly Logger log;
@@ -349,9 +351,18 @@ namespace osu.Game.Online.API
 
                 try
                 {
-                    authentication.AuthenticateWithLogin(ProvidedUsername, password);
+                    if (Endpoints.UseAuthorizationCode)
+                        authentication.AuthenticateWithAuthorizationCode("http://127.0.0.1:48732/", "identify public chat.read", authorizationCancellation.Token);
+                    else if (Endpoints.UseClientCredentials)
+                        authentication.AuthenticateWithClientCredentials();
+                    else
+                        authentication.AuthenticateWithLogin(ProvidedUsername, password);
                 }
                 catch (WebRequestFlushedException)
+                {
+                    return;
+                }
+                catch (OperationCanceledException)
                 {
                     return;
                 }
@@ -410,6 +421,16 @@ namespace osu.Game.Online.API
 
                 default:
                 {
+                    if (Endpoints.UseAuthorizationCode || Endpoints.UseClientCredentials)
+                    {
+                        // Client credentials provide application access and have no associated user.
+                        // Tournament requests only need public v2 data and chat channel access.
+                        state.Value = APIState.Online;
+                        livenessStopwatch.Restart();
+                        failureCount = 0;
+                        return;
+                    }
+
                     var userReq = new GetMeRequest();
 
                     userReq.Failure += ex =>
@@ -483,6 +504,32 @@ namespace osu.Game.Online.API
 
             ProvidedUsername = username;
             this.password = password;
+        }
+
+        public void SetOAuthCredentials(string clientId, string clientSecret)
+        {
+            if (Endpoints.APIClientID == clientId && Endpoints.APIClientSecret == clientSecret)
+                return;
+
+            authorizationRequested = false;
+            authorizationCancellation.Cancel();
+            Endpoints.APIClientID = clientId;
+            Endpoints.APIClientSecret = clientSecret;
+            authentication.SetCredentials(clientId, clientSecret);
+            if (Endpoints.UseAuthorizationCode)
+                state.Value = APIState.Offline;
+        }
+
+        public void RequestOAuthAuthorization()
+        {
+            if (!Endpoints.UseAuthorizationCode)
+                return;
+
+            authorizationCancellation.Cancel();
+            authorizationCancellation = new CancellationTokenSource();
+            authentication.Clear();
+            authorizationRequested = true;
+            state.Value = APIState.Connecting;
         }
 
         public void AuthenticateSecondFactor(string code)
@@ -688,6 +735,8 @@ namespace osu.Game.Online.API
 
         public void Logout()
         {
+            authorizationCancellation.Cancel();
+            authorizationRequested = false;
             password = null;
             SecondFactorCode = null;
             authentication.Clear();
@@ -700,6 +749,7 @@ namespace osu.Game.Online.API
 
         protected override void Dispose(bool isDisposing)
         {
+            authorizationCancellation.Cancel();
             base.Dispose(isDisposing);
 
             flushQueue();

@@ -7,6 +7,9 @@ using System;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Net;
+using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
 using osu.Framework.Bindables;
@@ -15,8 +18,8 @@ namespace osu.Game.Online.API
 {
     public class OAuth
     {
-        private readonly string clientId;
-        private readonly string clientSecret;
+        private string clientId;
+        private string clientSecret;
         private readonly string endpoint;
 
         public readonly Bindable<OAuthToken> Token = new Bindable<OAuthToken>();
@@ -36,6 +39,13 @@ namespace osu.Game.Online.API
             this.clientId = clientId;
             this.clientSecret = clientSecret;
             this.endpoint = endpoint;
+        }
+
+        internal void SetCredentials(string clientId, string clientSecret)
+        {
+            this.clientId = clientId;
+            this.clientSecret = clientSecret;
+            Token.Value = null;
         }
 
         internal void AuthenticateWithLogin(string username, string password)
@@ -78,6 +88,72 @@ namespace osu.Game.Online.API
                 }
 
                 Token.Value = accessTokenRequest.ResponseObject;
+            }
+        }
+
+        internal void AuthenticateWithClientCredentials()
+        {
+            var accessTokenRequest = new AccessTokenRequestClientCredentials
+            {
+                Url = $@"{endpoint}/oauth/token",
+                Method = HttpMethod.Post,
+                ClientId = clientId,
+                ClientSecret = clientSecret
+            };
+
+            using (accessTokenRequest)
+            {
+                accessTokenRequest.Perform();
+                Token.Value = accessTokenRequest.ResponseObject;
+            }
+        }
+
+        internal void AuthenticateWithAuthorizationCode(string redirectUri, string scope, CancellationToken cancellationToken)
+        {
+            string state = Guid.NewGuid().ToString("N");
+            string authorizationUrl = $"{endpoint}/oauth/authorize?client_id={Uri.EscapeDataString(clientId)}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope={Uri.EscapeDataString(scope)}&state={state}";
+            using var listener = new HttpListener();
+            listener.Prefixes.Add(redirectUri.EndsWith('/') ? redirectUri : redirectUri + "/");
+            listener.Start();
+            Process.Start(new ProcessStartInfo(authorizationUrl) { UseShellExecute = true });
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(3));
+            HttpListenerContext context;
+            try
+            {
+                context = listener.GetContextAsync().WaitAsync(timeout.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("OAuth authorization timed out. Press Login to try again.");
+            }
+            var query = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var part in context.Request.Url!.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var pair = part.Split('=', 2);
+                query[Uri.UnescapeDataString(pair[0])] = pair.Length > 1 ? Uri.UnescapeDataString(pair[1]) : string.Empty;
+            }
+            byte[] response = Encoding.UTF8.GetBytes("Authorization received. You can return to the tournament client.");
+            context.Response.OutputStream.Write(response, 0, response.Length);
+            context.Response.Close();
+
+            if (!query.TryGetValue("state", out var returnedState) || returnedState != state)
+                throw new InvalidOperationException("OAuth authorization state validation failed.");
+            if (query.TryGetValue("error", out var error))
+                throw new APIException($"OAuth authorization failed: {error}", null);
+            if (!query.TryGetValue("code", out var code) || string.IsNullOrEmpty(code))
+                throw new APIException("OAuth authorization did not return a code.", null);
+
+            var request = new AccessTokenRequestAuthorizationCode(code, redirectUri)
+            {
+                Url = $@"{endpoint}/oauth/token", Method = HttpMethod.Post,
+                ClientId = clientId, ClientSecret = clientSecret
+            };
+            using (request)
+            {
+                request.Perform();
+                Token.Value = request.ResponseObject;
             }
         }
 
@@ -196,9 +272,35 @@ namespace osu.Game.Online.API
             }
         }
 
+        private class AccessTokenRequestClientCredentials : AccessTokenRequest
+        {
+            internal AccessTokenRequestClientCredentials()
+            {
+                GrantType = @"client_credentials";
+                Scope = @"public";
+            }
+        }
+
+        private class AccessTokenRequestAuthorizationCode : AccessTokenRequest
+        {
+            private readonly string code;
+            private readonly string redirectUri;
+            internal AccessTokenRequestAuthorizationCode(string code, string redirectUri)
+            {
+                this.code = code; this.redirectUri = redirectUri; GrantType = @"authorization_code";
+            }
+            protected override void PrePerform()
+            {
+                AddParameter("code", code);
+                AddParameter("redirect_uri", redirectUri);
+                base.PrePerform();
+            }
+        }
+
         private class AccessTokenRequest : OsuJsonWebRequest<OAuthToken>
         {
             protected string GrantType;
+            protected string Scope = @"*";
 
             internal string ClientId;
             internal string ClientSecret;
@@ -208,7 +310,7 @@ namespace osu.Game.Online.API
                 AddParameter("grant_type", GrantType);
                 AddParameter("client_id", ClientId);
                 AddParameter("client_secret", ClientSecret);
-                AddParameter("scope", "*");
+                AddParameter("scope", Scope);
 
                 base.PrePerform();
             }
