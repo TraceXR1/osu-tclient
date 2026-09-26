@@ -85,9 +85,14 @@ namespace osu.Game.Tournament
                 using var stream = baseStorage.GetStream(credentials_filename);
                 using var reader = new StreamReader(stream);
                 var credentials = JsonConvert.DeserializeObject<string[]>(reader.ReadToEnd());
-                if (credentials?.Length == 2)
+                if (credentials?.Length >= 2)
+                {
                     API.SetOAuthCredentials(credentials[0], credentials[1]);
+                    if (credentials.Length > 2)
+                        API.SetOAuthToken(credentials[2]);
+                }
             }
+            API.OAuthTokenChanged += saveOAuthToken;
             Add(initialisationText = new TournamentSpriteText
             {
                 Anchor = Anchor.Centre,
@@ -354,9 +359,7 @@ namespace osu.Game.Tournament
         public void SaveChanges()
         {
             SavingChanges?.Invoke();
-            using (var stream = credentialStorage.CreateFileSafely(credentials_filename))
-            using (var writer = new StreamWriter(stream))
-                writer.Write(JsonConvert.SerializeObject(new[] { API.Endpoints.APIClientID, API.Endpoints.APIClientSecret }));
+            saveOAuthToken(API.OAuthTokenString);
             if (!bracketLoadTaskCompletionSource.Task.IsCompletedSuccessfully)
             {
                 Logger.Log("Inhibiting bracket save as bracket parsing failed");
@@ -364,6 +367,16 @@ namespace osu.Game.Tournament
             }
 
             saveChanges();
+        }
+
+        private void saveOAuthToken(string token)
+        {
+            if (credentialStorage == null || !API.Endpoints.UseAuthorizationCode)
+                return;
+
+            using var stream = credentialStorage.CreateFileSafely(credentials_filename);
+            using var writer = new StreamWriter(stream);
+            writer.Write(JsonConvert.SerializeObject(new[] { API.Endpoints.APIClientID, API.Endpoints.APIClientSecret, token ?? string.Empty }));
         }
 
         private void saveChanges()

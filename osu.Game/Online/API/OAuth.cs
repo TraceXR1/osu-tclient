@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
 using osu.Framework.Bindables;
+using osu.Framework.Logging;
 
 namespace osu.Game.Online.API
 {
@@ -45,7 +46,6 @@ namespace osu.Game.Online.API
         {
             this.clientId = clientId;
             this.clientSecret = clientSecret;
-            Token.Value = null;
         }
 
         internal void AuthenticateWithLogin(string username, string password)
@@ -95,6 +95,7 @@ namespace osu.Game.Online.API
         {
             string state = Guid.NewGuid().ToString("N");
             string authorizationUrl = $"{endpoint}/oauth/authorize?client_id={Uri.EscapeDataString(clientId)}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope={Uri.EscapeDataString(scope)}&state={state}";
+            Logger.Log($"Opening OAuth authorization with scopes: {scope}", LoggingTarget.Network);
             using var listener = new HttpListener();
             listener.Prefixes.Add(redirectUri.EndsWith('/') ? redirectUri : redirectUri + "/");
             listener.Start();

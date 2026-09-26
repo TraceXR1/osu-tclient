@@ -40,6 +40,7 @@ namespace osu.Game.Online.Chat
 
         private void onConnectedChanged(ValueChangedEvent<bool> connected)
         {
+            Logger.Log($"Chat websocket connection state changed: {connected.NewValue}", LoggingTarget.Network);
             if (connected.NewValue)
             {
                 client.MessageReceived += onMessageReceived;

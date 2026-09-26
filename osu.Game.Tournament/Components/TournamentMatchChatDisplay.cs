@@ -6,7 +6,10 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
+using osu.Framework.Logging;
+using osu.Framework.Threading;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.Chat;
 using osu.Game.Overlays.Chat;
 using osu.Game.Tournament.IPC;
@@ -18,7 +21,9 @@ namespace osu.Game.Tournament.Components
     {
         private readonly Bindable<string> channelName = new Bindable<string>();
 
-        private ChannelManager? manager;
+        private IAPIProvider? api;
+        private ScheduledDelegate? poll;
+        private Channel? currentChannel;
 
         [Resolved]
         private LadderInfo ladderInfo { get; set; } = null!;
@@ -36,20 +41,18 @@ namespace osu.Game.Tournament.Components
         [BackgroundDependencyLoader]
         private void load(MatchIPCInfo ipc, IAPIProvider api)
         {
-            AddInternal(manager = new ChannelManager(api));
-            Channel.BindTo(manager.CurrentChannel);
+            this.api = api;
 
             channelName.BindTo(ipc.ChatChannel);
             channelName.BindValueChanged(c =>
             {
-                if (int.TryParse(c.OldValue, out int oldChannelId) && oldChannelId > 0)
+                Logger.Log($"Tournament IPC chat channel changed from '{c.OldValue}' to '{c.NewValue}'", LoggingTarget.Network);
+                if (long.TryParse(c.OldValue, out long oldChannelId) && oldChannelId > 0)
                 {
-                    var joinedChannel = manager.JoinedChannels.SingleOrDefault(ch => ch.Id == oldChannelId);
-                    if (joinedChannel != null)
-                        manager.LeaveChannel(joinedChannel);
+                    poll?.Cancel();
                 }
 
-                if (int.TryParse(c.NewValue, out int newChannelId) && newChannelId > 0)
+                if (long.TryParse(c.NewValue, out long newChannelId) && newChannelId > 0)
                 {
                     var channel = new Channel
                     {
@@ -57,10 +60,23 @@ namespace osu.Game.Tournament.Components
                         Type = ChannelType.Public
                     };
 
-                    manager.JoinChannel(channel);
-                    manager.CurrentChannel.Value = channel;
+                    Logger.Log($"Joining tournament chat channel {newChannelId} as user {api.LocalUser.Value.Id}", LoggingTarget.Network);
+                    currentChannel = channel;
+                    Channel.Value = channel;
+                    poll = Scheduler.AddDelayed(pollMessages, 5000, true);
                 }
             }, true);
+        }
+
+        private void pollMessages()
+        {
+            if (api == null || currentChannel == null || !api.IsLoggedIn)
+                return;
+
+            var request = new GetMessagesRequest(currentChannel);
+            request.Success += messages => currentChannel.AddNewMessages(messages.ToArray());
+            request.Failure += error => Logger.Error(error, $"Failed to poll tournament chat channel {currentChannel.Id}");
+            api.Queue(request);
         }
 
         public void Expand() => this.FadeIn(300);

@@ -646,12 +646,12 @@ namespace osu.Game.Online.Chat
                         break;
 
                     default:
-                        Logger.Log($"Attempting to join public channel {channel}");
+                        Logger.Log($"Attempting to join public channel {channel} (id {channel.Id}, user {api.LocalUser.Value.Id})", LoggingTarget.Network);
 
                         var req = new JoinChannelRequest(channel);
                         req.Success += () =>
                         {
-                            Logger.Log($"Joined public channel {channel}");
+                            Logger.Log($"Joined public channel {channel} (id {channel.Id})", LoggingTarget.Network);
                             joinChannel(channel, fetchInitialMessages);
 
                             // Required after joining public channels to mark the user as online in them.
@@ -660,7 +660,7 @@ namespace osu.Game.Online.Chat
                         };
                         req.Failure += e =>
                         {
-                            Logger.Log($"Failed to join public channel {channel} ({e.Message})");
+                            Logger.Error(e, $"Failed to join public channel {channel} (id {channel.Id}, user {api.LocalUser.Value.Id})");
                             LeaveChannel(channel);
                         };
                         api.Queue(req);

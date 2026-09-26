@@ -117,6 +117,10 @@ namespace osu.Game.Online.API
 
         void SetOAuthCredentials(string clientId, string clientSecret);
 
+        string OAuthTokenString { get; }
+        event Action<string>? OAuthTokenChanged;
+        void SetOAuthToken(string token);
+
         void RequestOAuthAuthorization();
 
         /// <summary>

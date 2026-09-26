@@ -50,6 +50,8 @@ namespace osu.Game.Online.API
         public int APIVersion { get; }
 
         public Exception LastLoginError { get; private set; }
+        public event Action<string> OAuthTokenChanged;
+        public string OAuthTokenString => authentication.TokenString;
 
         public string ProvidedUsername { get; private set; }
 
@@ -72,7 +74,9 @@ namespace osu.Game.Online.API
 
         public Language Language => game.CurrentLanguage.Value;
 
-        protected bool HasLogin => (Endpoints.UseAuthorizationCode ? authorizationRequested : authentication.Token.Value != null) || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
+        protected bool HasLogin => Endpoints.UseAuthorizationCode
+            ? authorizationRequested || authentication.Token.Value != null
+            : authentication.Token.Value != null || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
 
         private readonly CancellationTokenSource cancellationToken = new CancellationTokenSource();
         private readonly Logger log;
@@ -102,10 +106,12 @@ namespace osu.Game.Online.API
             log = Logger.GetLogger(LoggingTarget.Network);
             log.Add($@"API endpoint root: {Endpoints.APIUrl}");
             log.Add($@"API request version: {APIVersion}");
+            log.Add($@"OAuth authorization code mode: {Endpoints.UseAuthorizationCode}");
 
             ProvidedUsername = config.Get<string>(OsuSetting.Username);
 
-            authentication.TokenString = config.Get<string>(OsuSetting.Token);
+            if (!Endpoints.UseAuthorizationCode)
+                authentication.TokenString = config.Get<string>(OsuSetting.Token);
             authentication.Token.ValueChanged += onTokenChanged;
 
             AddInternal(localUserState = new LocalUserState(this, config));
@@ -159,7 +165,18 @@ namespace osu.Game.Online.API
             return connector;
         }
 
-        private void onTokenChanged(ValueChangedEvent<OAuthToken> e) => config.SetValue(OsuSetting.Token, config.Get<bool>(OsuSetting.SavePassword) ? authentication.TokenString : string.Empty);
+        private void onTokenChanged(ValueChangedEvent<OAuthToken> e)
+        {
+            // Tournament OAuth tokens must not touch the shared osu! user token setting.
+            // Even writing an empty value here would log out a regular osu! client running beside it.
+            if (Endpoints.UseAuthorizationCode)
+            {
+                OAuthTokenChanged?.Invoke(authentication.TokenString);
+                return;
+            }
+
+            config.SetValue(OsuSetting.Token, config.Get<bool>(OsuSetting.SavePassword) ? authentication.TokenString : string.Empty);
+        }
 
         void IAPIProvider.Schedule(Action action) => base.Schedule(action);
 
@@ -346,15 +363,27 @@ namespace osu.Game.Online.API
 
             if (!authentication.HasValidAccessToken)
             {
+                if (Endpoints.UseAuthorizationCode && !authorizationRequested)
+                {
+                    state.Value = APIState.Offline;
+                    return;
+                }
+
                 state.Value = APIState.Connecting;
                 LastLoginError = null;
 
                 try
                 {
                     if (Endpoints.UseAuthorizationCode)
+                    {
+                        log.Add("Authenticating with OAuth Authorization Code grant");
                         authentication.AuthenticateWithAuthorizationCode("http://127.0.0.1:48732/", "identify public chat.read", authorizationCancellation.Token);
+                    }
                     else
+                    {
+                        log.Add("Authenticating with OAuth password grant");
                         authentication.AuthenticateWithLogin(ProvidedUsername, password);
+                    }
                 }
                 catch (WebRequestFlushedException)
                 {
@@ -419,14 +448,6 @@ namespace osu.Game.Online.API
 
                 default:
                 {
-                    if (Endpoints.UseAuthorizationCode)
-                    {
-                        state.Value = APIState.Online;
-                        livenessStopwatch.Restart();
-                        failureCount = 0;
-                        return;
-                    }
-
                     var userReq = new GetMeRequest();
 
                     userReq.Failure += ex =>
@@ -512,8 +533,6 @@ namespace osu.Game.Online.API
             Endpoints.APIClientID = clientId;
             Endpoints.APIClientSecret = clientSecret;
             authentication.SetCredentials(clientId, clientSecret);
-            if (Endpoints.UseAuthorizationCode)
-                state.Value = APIState.Offline;
         }
 
         public void RequestOAuthAuthorization()
@@ -526,6 +545,16 @@ namespace osu.Game.Online.API
             authentication.Clear();
             authorizationRequested = true;
             state.Value = APIState.Connecting;
+        }
+
+        public void SetOAuthToken(string token)
+        {
+            if (!Endpoints.UseAuthorizationCode)
+                return;
+
+            authentication.TokenString = token;
+            if (authentication.Token.Value != null)
+                state.Value = APIState.Connecting;
         }
 
         public void AuthenticateSecondFactor(string code)

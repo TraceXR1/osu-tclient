@@ -151,6 +151,12 @@ namespace osu.Game.Online.API
             Endpoints.APIClientSecret = clientSecret;
         }
 
+        public string OAuthTokenString => string.Empty;
+        public event Action<string>? OAuthTokenChanged { add { } remove { } }
+        public void SetOAuthToken(string token)
+        {
+        }
+
         public void RequestOAuthAuthorization()
         {
         }

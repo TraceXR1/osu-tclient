@@ -119,7 +119,12 @@ namespace osu.Game.Tournament.IPC
                             using (var stream = IPCStorage.GetStream(file_ipc_channel_filename))
                             using (var sr = new StreamReader(stream))
                             {
-                                ChatChannel.Value = sr.ReadLine().AsNonNull();
+                                string channel = sr.ReadLine().AsNonNull();
+                                if (ChatChannel.Value != channel)
+                                {
+                                    ChatChannel.Value = channel;
+                                    Logger.Log($"Read tournament IPC chat channel '{channel}'", LoggingTarget.Network);
+                                }
                             }
                         }
                         catch (Exception)
