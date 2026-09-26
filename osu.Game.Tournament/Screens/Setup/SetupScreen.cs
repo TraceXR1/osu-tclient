@@ -118,7 +118,7 @@ namespace osu.Game.Tournament.Screens.Setup
                 credentials = new ApiCredentialsControl(api.Endpoints.APIClientID, api.Endpoints.APIClientSecret)
                 {
                     Label = "API Credentials",
-                    ButtonText = api.Endpoints.UseAuthorizationCode || api.Endpoints.UseClientCredentials ? "Login" : "Change sign-in",
+                    ButtonText = api.Endpoints.UseAuthorizationCode ? "Login" : "Change sign-in",
                     Action = () =>
                     {
                         api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);

@@ -91,23 +91,6 @@ namespace osu.Game.Online.API
             }
         }
 
-        internal void AuthenticateWithClientCredentials()
-        {
-            var accessTokenRequest = new AccessTokenRequestClientCredentials
-            {
-                Url = $@"{endpoint}/oauth/token",
-                Method = HttpMethod.Post,
-                ClientId = clientId,
-                ClientSecret = clientSecret
-            };
-
-            using (accessTokenRequest)
-            {
-                accessTokenRequest.Perform();
-                Token.Value = accessTokenRequest.ResponseObject;
-            }
-        }
-
         internal void AuthenticateWithAuthorizationCode(string redirectUri, string scope, CancellationToken cancellationToken)
         {
             string state = Guid.NewGuid().ToString("N");
@@ -272,15 +255,6 @@ namespace osu.Game.Online.API
             }
         }
 
-        private class AccessTokenRequestClientCredentials : AccessTokenRequest
-        {
-            internal AccessTokenRequestClientCredentials()
-            {
-                GrantType = @"client_credentials";
-                Scope = @"public";
-            }
-        }
-
         private class AccessTokenRequestAuthorizationCode : AccessTokenRequest
         {
             private readonly string code;
@@ -300,7 +274,6 @@ namespace osu.Game.Online.API
         private class AccessTokenRequest : OsuJsonWebRequest<OAuthToken>
         {
             protected string GrantType;
-            protected string Scope = @"*";
 
             internal string ClientId;
             internal string ClientSecret;
@@ -310,7 +283,7 @@ namespace osu.Game.Online.API
                 AddParameter("grant_type", GrantType);
                 AddParameter("client_id", ClientId);
                 AddParameter("client_secret", ClientSecret);
-                AddParameter("scope", Scope);
+                AddParameter("scope", "*");
 
                 base.PrePerform();
             }

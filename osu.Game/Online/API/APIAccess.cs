@@ -72,7 +72,7 @@ namespace osu.Game.Online.API
 
         public Language Language => game.CurrentLanguage.Value;
 
-        protected bool HasLogin => (Endpoints.UseAuthorizationCode ? authorizationRequested : authentication.Token.Value != null) || Endpoints.UseClientCredentials || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
+        protected bool HasLogin => (Endpoints.UseAuthorizationCode ? authorizationRequested : authentication.Token.Value != null) || (!string.IsNullOrEmpty(ProvidedUsername) && !string.IsNullOrEmpty(password));
 
         private readonly CancellationTokenSource cancellationToken = new CancellationTokenSource();
         private readonly Logger log;
@@ -353,8 +353,6 @@ namespace osu.Game.Online.API
                 {
                     if (Endpoints.UseAuthorizationCode)
                         authentication.AuthenticateWithAuthorizationCode("http://127.0.0.1:48732/", "identify public chat.read", authorizationCancellation.Token);
-                    else if (Endpoints.UseClientCredentials)
-                        authentication.AuthenticateWithClientCredentials();
                     else
                         authentication.AuthenticateWithLogin(ProvidedUsername, password);
                 }
@@ -421,10 +419,8 @@ namespace osu.Game.Online.API
 
                 default:
                 {
-                    if (Endpoints.UseAuthorizationCode || Endpoints.UseClientCredentials)
+                    if (Endpoints.UseAuthorizationCode)
                     {
-                        // Client credentials provide application access and have no associated user.
-                        // Tournament requests only need public v2 data and chat channel access.
                         state.Value = APIState.Online;
                         livenessStopwatch.Restart();
                         failureCount = 0;
