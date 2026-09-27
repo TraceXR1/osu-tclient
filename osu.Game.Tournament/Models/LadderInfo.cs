@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using osu.Framework.Bindables;
+using osu.Framework.Graphics;
 using osu.Game.Graphics;
 using osu.Game.Rulesets;
 
@@ -18,6 +19,15 @@ namespace osu.Game.Tournament.Models
     {
         public readonly TournamentSide RedSide = new TournamentSide("Red", new OsuColour().TeamColourRed);
         public readonly TournamentSide BlueSide = new TournamentSide("Blue", new OsuColour().TeamColourBlue);
+
+        [JsonIgnore]
+        public readonly Bindable<Colour4> RefereeColour = new Bindable<Colour4>(Colour4.FromHex("FFD966"));
+
+        public string RefereeColourHex
+        {
+            get => RefereeColour.Value.ToHex();
+            set => RefereeColour.Value = Colour4.FromHex(value);
+        }
 
         public TournamentSide GetSide(TeamColour colour) => colour == TeamColour.Red ? RedSide : BlueSide;
 

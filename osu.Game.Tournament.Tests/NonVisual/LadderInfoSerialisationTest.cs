@@ -35,6 +35,7 @@ namespace osu.Game.Tournament.Tests.NonVisual
             ladder.BlueSide.Name.Value = "Beta";
             ladder.RedSide.Colour.Value = Colour4.FromHex("22CC88");
             ladder.BlueSide.Colour.Value = Colour4.FromHex("FFD100");
+            ladder.RefereeColour.Value = Colour4.FromHex("FF77AA");
 
             string serialised = JsonConvert.SerializeObject(ladder, new JsonSerializerSettings
             {
@@ -50,6 +51,7 @@ namespace osu.Game.Tournament.Tests.NonVisual
                 Assert.That(restored.BlueSide.Name.Value, Is.EqualTo("Beta"));
                 Assert.That(restored.RedSide.Colour.Value, Is.EqualTo(ladder.RedSide.Colour.Value));
                 Assert.That(restored.BlueSide.Colour.Value, Is.EqualTo(ladder.BlueSide.Colour.Value));
+                Assert.That(restored.RefereeColour.Value, Is.EqualTo(ladder.RefereeColour.Value));
             });
         }
 
@@ -64,6 +66,7 @@ namespace osu.Game.Tournament.Tests.NonVisual
                 Assert.That(ladder.BlueSide.Name.Value, Is.EqualTo("Blue"));
                 Assert.That(ladder.RedSide.Colour.Value, Is.EqualTo((Colour4)TournamentGame.COLOUR_RED));
                 Assert.That(ladder.BlueSide.Colour.Value, Is.EqualTo((Colour4)TournamentGame.COLOUR_BLUE));
+                Assert.That(ladder.RefereeColour.Value, Is.EqualTo(Colour4.FromHex("FFD966")));
             });
         }
 

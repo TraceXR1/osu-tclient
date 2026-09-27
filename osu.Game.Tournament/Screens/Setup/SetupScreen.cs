@@ -208,6 +208,11 @@ namespace osu.Game.Tournament.Screens.Setup
                     Label = "Right side colour",
                     Current = LadderInfo.BlueSide.Colour,
                 },
+                new SideColourControl
+                {
+                    Label = "Referee colour",
+                    Current = LadderInfo.RefereeColour,
+                },
             };
 
             credentials.Changed += () => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
