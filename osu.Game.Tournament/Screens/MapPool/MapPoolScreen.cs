@@ -39,6 +39,8 @@ namespace osu.Game.Tournament.Screens.MapPool
 
         private ScheduledDelegate? scheduledScreenChange;
 
+        private MatchIPCInfo matchIpc = null!;
+
         [BackgroundDependencyLoader]
         private void load(MatchIPCInfo ipc)
         {
@@ -123,6 +125,7 @@ namespace osu.Game.Tournament.Screens.MapPool
             };
 
             ipc.Beatmap.BindValueChanged(beatmapChanged);
+            matchIpc = ipc;
         }
 
         private Bindable<bool>? splitMapPoolByMods;
@@ -133,6 +136,14 @@ namespace osu.Game.Tournament.Screens.MapPool
 
             splitMapPoolByMods = LadderInfo.SplitMapPoolByMods.GetBoundCopy();
             splitMapPoolByMods.BindValueChanged(_ => updateDisplay());
+
+            // Observe room state even while this screen is hidden.
+            matchIpc.State.BindValueChanged(state =>
+            {
+                if (state.NewValue is TourneyState.WaitingForClients or TourneyState.Playing
+                    && LadderInfo.AutoProgressScreens.Value)
+                    sceneManager?.SetScreen(typeof(GameplayScreen));
+            }, true);
         }
 
         private void beatmapChanged(ValueChangedEvent<TournamentBeatmap?> beatmap)
