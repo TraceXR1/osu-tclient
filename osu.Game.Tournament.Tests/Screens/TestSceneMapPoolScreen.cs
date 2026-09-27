@@ -37,6 +37,9 @@ namespace osu.Game.Tournament.Tests.Screens
             Ladder.CurrentMatch.Value = new TournamentMatch();
             Ladder.CurrentMatch.Value = Ladder.Matches.First();
             Ladder.CurrentMatch.Value.PicksBans.Clear();
+            Ladder.CurrentMatch.Value.Protects.Clear();
+            Ladder.CurrentMatch.Value.Round.Value!.ProtectCount.Value = 0;
+            Ladder.CurrentMatch.Value.Round.Value.AllowPickingOpponentProtects.Value = true;
         }
 
         [SetUp]
@@ -147,6 +150,41 @@ namespace osu.Game.Tournament.Tests.Screens
             AddStep("disable splitting map pool by mods", () => Ladder.SplitMapPoolByMods.Value = false);
 
             AddStep("reset state", resetState);
+        }
+
+        [Test]
+        public void TestProtectAndPick()
+        {
+            AddStep("configure protects", () =>
+            {
+                var round = Ladder.CurrentMatch.Value!.Round.Value!;
+                round.ProtectCount.Value = 1;
+                round.AllowPickingOpponentProtects.Value = false;
+                round.Beatmaps.Clear();
+                for (int i = 0; i < 4; i++)
+                    addBeatmap();
+            });
+            AddStep("update displayed maps", () => Ladder.SplitMapPoolByMods.Value = false);
+            AddStep("red protect mode", () => screen.ChildrenOfType<TourneyButton>().First(btn => btn.Text == "Red Protect").TriggerClick());
+            AddStep("protect first map", () => clickBeatmapPanel(0));
+            AddAssert("red protect recorded", () => Ladder.CurrentMatch.Value!.Protects.Single().Team == TeamColour.Red);
+            checkTotalPickBans(0);
+            AddStep("protect second map", () => clickBeatmapPanel(1));
+            AddAssert("blue protect recorded", () => Ladder.CurrentMatch.Value!.Protects.Last().Team == TeamColour.Blue);
+            AddStep("red ban mode", () => screen.ChildrenOfType<TourneyButton>().First(btn => btn.Text == "Red Ban").TriggerClick());
+            AddStep("attempt to ban protected map", () => clickBeatmapPanel(0));
+            checkTotalPickBans(0);
+            AddStep("blue pick mode", () => screen.ChildrenOfType<TourneyButton>().First(btn => btn.Text == "Blue Pick").TriggerClick());
+            AddStep("attempt opponent protect pick", () => clickBeatmapPanel(0));
+            checkTotalPickBans(0);
+            AddStep("red pick mode", () => screen.ChildrenOfType<TourneyButton>().First(btn => btn.Text == "Red Pick").TriggerClick());
+            AddStep("pick own protect", () => clickBeatmapPanel(0));
+            checkTotalPickBans(1);
+            checkLastPick(ChoiceType.Pick, TeamColour.Red);
+            AddAssert("protect preserved", () => Ladder.CurrentMatch.Value!.Protects.Count == 2);
+            AddStep("reset choices", () => screen.ChildrenOfType<TourneyButton>().First(btn => btn.Text == "Reset").TriggerClick());
+            checkTotalPickBans(0);
+            AddAssert("protects cleared", () => Ladder.CurrentMatch.Value!.Protects.Count == 0);
         }
 
         [Test]
