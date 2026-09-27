@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -18,6 +19,12 @@ namespace osu.Game.Tournament.Components
         private Box background = null!;
 
         private Color4 backgroundColour;
+
+        [Resolved]
+        private LadderInfo ladderInfo { get; set; } = null!;
+
+        private readonly Bindable<Colour4> redColour = new Bindable<Colour4>();
+        private readonly Bindable<Colour4> blueColour = new Bindable<Colour4>();
 
         private TeamColour? teamColour;
 
@@ -75,6 +82,10 @@ namespace osu.Game.Tournament.Components
         {
             base.LoadComplete();
 
+            redColour.BindTo(ladderInfo.RedSide.Colour);
+            blueColour.BindTo(ladderInfo.BlueSide.Colour);
+            redColour.BindValueChanged(_ => updateColour());
+            blueColour.BindValueChanged(_ => updateColour());
             updateColour();
         }
 
@@ -86,7 +97,7 @@ namespace osu.Game.Tournament.Components
                 return;
             }
 
-            backgroundColour = TournamentGame.GetTeamColour(TeamColour.Value);
+            backgroundColour = ladderInfo.GetSide(TeamColour.Value).Colour.Value;
 
             protectIcon.Colour = backgroundColour.Darken(2f);
             background.Colour = backgroundColour;

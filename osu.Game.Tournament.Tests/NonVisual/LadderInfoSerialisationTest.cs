@@ -3,6 +3,7 @@
 
 using Newtonsoft.Json;
 using NUnit.Framework;
+using osu.Framework.Graphics;
 using osu.Game.Tournament.Models;
 
 namespace osu.Game.Tournament.Tests.NonVisual
@@ -24,6 +25,46 @@ namespace osu.Game.Tournament.Tests.NonVisual
         {
             var ladder = createSampleLadder();
             JsonConvert.SerializeObject(ladder);
+        }
+
+        [Test]
+        public void TestSideSettingsRoundTrip()
+        {
+            var ladder = new LadderInfo();
+            ladder.RedSide.Name.Value = "Alpha";
+            ladder.BlueSide.Name.Value = "Beta";
+            ladder.RedSide.Colour.Value = Colour4.FromHex("22CC88");
+            ladder.BlueSide.Colour.Value = Colour4.FromHex("FFD100");
+
+            string serialised = JsonConvert.SerializeObject(ladder, new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                DefaultValueHandling = DefaultValueHandling.Ignore,
+                Converters = new JsonConverter[] { new JsonPointConverter() }
+            });
+            var restored = JsonConvert.DeserializeObject<LadderInfo>(serialised, new JsonPointConverter())!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(restored.RedSide.Name.Value, Is.EqualTo("Alpha"));
+                Assert.That(restored.BlueSide.Name.Value, Is.EqualTo("Beta"));
+                Assert.That(restored.RedSide.Colour.Value, Is.EqualTo(ladder.RedSide.Colour.Value));
+                Assert.That(restored.BlueSide.Colour.Value, Is.EqualTo(ladder.BlueSide.Colour.Value));
+            });
+        }
+
+        [Test]
+        public void TestOldBracketSideDefaults()
+        {
+            var ladder = JsonConvert.DeserializeObject<LadderInfo>("{}")!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ladder.RedSide.Name.Value, Is.EqualTo("Red"));
+                Assert.That(ladder.BlueSide.Name.Value, Is.EqualTo("Blue"));
+                Assert.That(ladder.RedSide.Colour.Value, Is.EqualTo((Colour4)TournamentGame.COLOUR_RED));
+                Assert.That(ladder.BlueSide.Colour.Value, Is.EqualTo((Colour4)TournamentGame.COLOUR_BLUE));
+            });
         }
 
         private static LadderInfo createSampleLadder()

@@ -32,6 +32,12 @@ namespace osu.Game.Tournament.Components
         private Container borderBox = null!;
         private TournamentProtectIcon protectIcon = null!;
 
+        [Resolved]
+        private LadderInfo ladderInfo { get; set; } = null!;
+
+        private readonly Bindable<Colour4> redColour = new Bindable<Colour4>();
+        private readonly Bindable<Colour4> blueColour = new Bindable<Colour4>();
+
         public TournamentBeatmapPanel(IBeatmapInfo? beatmap, string mod = "")
         {
             Beatmap = beatmap;
@@ -44,6 +50,10 @@ namespace osu.Game.Tournament.Components
         [BackgroundDependencyLoader]
         private void load(LadderInfo ladder)
         {
+            redColour.BindTo(ladder.RedSide.Colour);
+            blueColour.BindTo(ladder.BlueSide.Colour);
+            redColour.BindValueChanged(_ => Scheduler.AddOnce(updateState));
+            blueColour.BindValueChanged(_ => Scheduler.AddOnce(updateState));
             currentMatch.BindValueChanged(matchChanged);
             currentMatch.BindTo(ladder.CurrentMatch);
 
@@ -193,7 +203,7 @@ namespace osu.Game.Tournament.Components
             if (newChoice != null)
             {
                 borderBox.BorderThickness = 6;
-                borderBox.BorderColour = TournamentGame.GetTeamColour(newChoice.Team);
+                borderBox.BorderColour = ladderInfo.GetSide(newChoice.Team).Colour.Value;
 
                 switch (newChoice.Type)
                 {

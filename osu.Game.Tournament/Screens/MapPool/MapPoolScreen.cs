@@ -6,6 +6,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Threading;
 using osu.Game.Graphics.UserInterface;
@@ -71,37 +72,37 @@ namespace osu.Game.Tournament.Screens.MapPool
                         {
                             Text = "Current Mode"
                         },
-                        buttonRedBan = new TourneyButton
+                        buttonRedBan = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Red Ban",
                             Action = () => setMode(TeamColour.Red, ChoiceType.Ban)
                         },
-                        buttonBlueBan = new TourneyButton
+                        buttonBlueBan = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Blue Ban",
                             Action = () => setMode(TeamColour.Blue, ChoiceType.Ban)
                         },
-                        buttonRedPick = new TourneyButton
+                        buttonRedPick = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Red Pick",
                             Action = () => setMode(TeamColour.Red, ChoiceType.Pick)
                         },
-                        buttonBluePick = new TourneyButton
+                        buttonBluePick = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Blue Pick",
                             Action = () => setMode(TeamColour.Blue, ChoiceType.Pick)
                         },
-                        buttonRedProtect = new TourneyButton
+                        buttonRedProtect = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Red Protect",
                             Action = () => setMode(TeamColour.Red, ChoiceType.Protect)
                         },
-                        buttonBlueProtect = new TourneyButton
+                        buttonBlueProtect = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Blue Protect",
@@ -129,11 +130,27 @@ namespace osu.Game.Tournament.Screens.MapPool
         }
 
         private Bindable<bool>? splitMapPoolByMods;
+        private readonly Bindable<string> redName = new Bindable<string>();
+        private readonly Bindable<string> blueName = new Bindable<string>();
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
 
+            redName.BindTo(LadderInfo.RedSide.Name);
+            blueName.BindTo(LadderInfo.BlueSide.Name);
+            redName.BindValueChanged(name =>
+            {
+                buttonRedBan.Text = $"{name.NewValue} Ban";
+                buttonRedPick.Text = $"{name.NewValue} Pick";
+                buttonRedProtect.Text = $"{name.NewValue} Protect";
+            }, true);
+            blueName.BindValueChanged(name =>
+            {
+                buttonBlueBan.Text = $"{name.NewValue} Ban";
+                buttonBluePick.Text = $"{name.NewValue} Pick";
+                buttonBlueProtect.Text = $"{name.NewValue} Protect";
+            }, true);
             splitMapPoolByMods = LadderInfo.SplitMapPoolByMods.GetBoundCopy();
             splitMapPoolByMods.BindValueChanged(_ => updateDisplay());
 
@@ -159,6 +176,18 @@ namespace osu.Game.Tournament.Screens.MapPool
             // if bans have already been placed, beatmap changes result in a selection being made automatically
             if (beatmap.NewValue?.OnlineID > 0)
                 addForBeatmap(beatmap.NewValue.OnlineID);
+        }
+
+        private partial class SideModeButton : TourneyButton
+        {
+            protected override SpriteText CreateText()
+            {
+                var text = base.CreateText();
+                text.RelativeSizeAxes = Axes.X;
+                text.Width = 0.9f;
+                text.Truncate = true;
+                return text;
+            }
         }
 
         private void setMode(TeamColour colour, ChoiceType choiceType)
