@@ -8,12 +8,14 @@ using osu.Framework.Bindables;
 using osu.Framework.Configuration;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
+using osu.Game.Overlays.Settings;
 using osu.Game.Rulesets;
 using osu.Game.Tournament.IPC;
 using osu.Game.Tournament.Models;
@@ -62,16 +64,20 @@ namespace osu.Game.Tournament.Screens.Setup
                     RelativeSizeAxes = Axes.Both,
                     Colour = ColourProvider.Background5,
                 },
-                new OsuScrollContainer
+                new PopoverContainer
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Child = fillFlow = new FillFlowContainer
+                    Child = new OsuScrollContainer
                     {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Vertical,
-                        Padding = new MarginPadding(10),
-                        Spacing = new Vector2(10),
+                        RelativeSizeAxes = Axes.Both,
+                        Child = fillFlow = new FillFlowContainer
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Direction = FillDirection.Vertical,
+                            Padding = new MarginPadding(10),
+                            Spacing = new Vector2(10),
+                        },
                     },
                 },
             };
@@ -180,9 +186,51 @@ namespace osu.Game.Tournament.Screens.Setup
                     Description = "Team seeds will display alongside each team at the top in gameplay/map pool screens.",
                     Current = LadderInfo.DisplayTeamSeeds,
                 },
+                new LabelledTextBox
+                {
+                    Label = "Left side name",
+                    Current = LadderInfo.RedSide.Name,
+                    SelectAllOnFocus = true,
+                },
+                new SideColourControl
+                {
+                    Label = "Left side colour",
+                    Current = LadderInfo.RedSide.Colour,
+                },
+                new LabelledTextBox
+                {
+                    Label = "Right side name",
+                    Current = LadderInfo.BlueSide.Name,
+                    SelectAllOnFocus = true,
+                },
+                new SideColourControl
+                {
+                    Label = "Right side colour",
+                    Current = LadderInfo.BlueSide.Colour,
+                },
+                new SideColourControl
+                {
+                    Label = "Referee colour",
+                    Current = LadderInfo.RefereeColour,
+                },
+                new LabelledSwitchButton
+                {
+                    Label = "Mute UI sounds",
+                    Current = LadderInfo.MuteUISounds,
+                },
             };
 
             credentials.Changed += () => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
+        }
+
+        private partial class SideColourControl : LabelledComponent<SettingsColour.ColourControl, Colour4>
+        {
+            public SideColourControl()
+                : base(true)
+            {
+            }
+
+            protected override SettingsColour.ColourControl CreateComponent() => new SettingsColour.ColourControl();
         }
 
         private partial class ApiCredentialsControl : ActionableInfo

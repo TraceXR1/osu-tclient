@@ -153,6 +153,20 @@ namespace osu.Game.Tournament.Tests.Components
                 Content = "Okay okay, calm down guys. Let's do this!"
             }));
 
+            AddUntilStep("admin uses referee colour", () =>
+                this.ChildrenOfType<DrawableChatUsername>().Last().AccentColour, () => Is.EqualTo((osuTK.Graphics.Color4)ladderInfo.RefereeColour.Value));
+
+            AddStep("set referee colour", () => ladderInfo.RefereeColour.Value = Colour4.FromHex("FF77AA"));
+            AddStep("message from referee without group colour", () => testChannel.AddNewMessages(new Message(nextMessageId())
+            {
+                Sender = new APIUser { Id = 6, Username = "Referee" },
+                Content = "Both teams ready?"
+            }));
+            AddUntilStep("referee uses configured colour", () =>
+                this.ChildrenOfType<DrawableChatUsername>().Last().AccentColour, () => Is.EqualTo((osuTK.Graphics.Color4)ladderInfo.RefereeColour.Value));
+            AddUntilStep("referee username is inverted", () =>
+                this.ChildrenOfType<DrawableChatUsername>().Last().Inverted, () => Is.True);
+
             AddStep("multiple messages", () => testChannel.AddNewMessages(
                 new Message(nextMessageId())
                 {

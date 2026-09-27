@@ -6,6 +6,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Threading;
 using osu.Game.Graphics.UserInterface;
@@ -34,8 +35,12 @@ namespace osu.Game.Tournament.Screens.MapPool
         private OsuButton buttonBlueBan = null!;
         private OsuButton buttonRedPick = null!;
         private OsuButton buttonBluePick = null!;
+        private OsuButton buttonRedProtect = null!;
+        private OsuButton buttonBlueProtect = null!;
 
         private ScheduledDelegate? scheduledScreenChange;
+
+        private MatchIPCInfo matchIpc = null!;
 
         [BackgroundDependencyLoader]
         private void load(MatchIPCInfo ipc)
@@ -67,29 +72,41 @@ namespace osu.Game.Tournament.Screens.MapPool
                         {
                             Text = "Current Mode"
                         },
-                        buttonRedBan = new TourneyButton
+                        buttonRedBan = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Red Ban",
                             Action = () => setMode(TeamColour.Red, ChoiceType.Ban)
                         },
-                        buttonBlueBan = new TourneyButton
+                        buttonBlueBan = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Blue Ban",
                             Action = () => setMode(TeamColour.Blue, ChoiceType.Ban)
                         },
-                        buttonRedPick = new TourneyButton
+                        buttonRedPick = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Red Pick",
                             Action = () => setMode(TeamColour.Red, ChoiceType.Pick)
                         },
-                        buttonBluePick = new TourneyButton
+                        buttonBluePick = new SideModeButton
                         {
                             RelativeSizeAxes = Axes.X,
                             Text = "Blue Pick",
                             Action = () => setMode(TeamColour.Blue, ChoiceType.Pick)
+                        },
+                        buttonRedProtect = new SideModeButton
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Text = "Red Protect",
+                            Action = () => setMode(TeamColour.Red, ChoiceType.Protect)
+                        },
+                        buttonBlueProtect = new SideModeButton
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Text = "Blue Protect",
+                            Action = () => setMode(TeamColour.Blue, ChoiceType.Protect)
                         },
                         new ControlPanel.Spacer(),
                         new TourneyButton
@@ -109,16 +126,41 @@ namespace osu.Game.Tournament.Screens.MapPool
             };
 
             ipc.Beatmap.BindValueChanged(beatmapChanged);
+            matchIpc = ipc;
         }
 
         private Bindable<bool>? splitMapPoolByMods;
+        private readonly Bindable<string> redName = new Bindable<string>();
+        private readonly Bindable<string> blueName = new Bindable<string>();
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
 
+            redName.BindTo(LadderInfo.RedSide.Name);
+            blueName.BindTo(LadderInfo.BlueSide.Name);
+            redName.BindValueChanged(name =>
+            {
+                buttonRedBan.Text = $"{name.NewValue} Ban";
+                buttonRedPick.Text = $"{name.NewValue} Pick";
+                buttonRedProtect.Text = $"{name.NewValue} Protect";
+            }, true);
+            blueName.BindValueChanged(name =>
+            {
+                buttonBlueBan.Text = $"{name.NewValue} Ban";
+                buttonBluePick.Text = $"{name.NewValue} Pick";
+                buttonBlueProtect.Text = $"{name.NewValue} Protect";
+            }, true);
             splitMapPoolByMods = LadderInfo.SplitMapPoolByMods.GetBoundCopy();
             splitMapPoolByMods.BindValueChanged(_ => updateDisplay());
+
+            // Observe room state even while this screen is hidden.
+            matchIpc.State.BindValueChanged(state =>
+            {
+                if (state.NewValue is TourneyState.WaitingForClients or TourneyState.Playing
+                    && LadderInfo.AutoProgressScreens.Value)
+                    sceneManager?.SetScreen(typeof(GameplayScreen));
+            }, true);
         }
 
         private void beatmapChanged(ValueChangedEvent<TournamentBeatmap?> beatmap)
@@ -136,6 +178,18 @@ namespace osu.Game.Tournament.Screens.MapPool
                 addForBeatmap(beatmap.NewValue.OnlineID);
         }
 
+        private partial class SideModeButton : TourneyButton
+        {
+            protected override SpriteText CreateText()
+            {
+                var text = base.CreateText();
+                text.RelativeSizeAxes = Axes.X;
+                text.Width = 0.9f;
+                text.Truncate = true;
+                return text;
+            }
+        }
+
         private void setMode(TeamColour colour, ChoiceType choiceType)
         {
             pickColour = colour;
@@ -145,6 +199,8 @@ namespace osu.Game.Tournament.Screens.MapPool
             buttonBlueBan.Colour = setColour(pickColour == TeamColour.Blue && pickType == ChoiceType.Ban);
             buttonRedPick.Colour = setColour(pickColour == TeamColour.Red && pickType == ChoiceType.Pick);
             buttonBluePick.Colour = setColour(pickColour == TeamColour.Blue && pickType == ChoiceType.Pick);
+            buttonRedProtect.Colour = setColour(pickColour == TeamColour.Red && pickType == ChoiceType.Protect);
+            buttonBlueProtect.Colour = setColour(pickColour == TeamColour.Blue && pickType == ChoiceType.Protect);
 
             static Color4 setColour(bool active) => active ? Color4.White : Color4.Gray;
         }
@@ -155,29 +211,41 @@ namespace osu.Game.Tournament.Screens.MapPool
                 return;
 
             int totalBansRequired = CurrentMatch.Value.Round.Value.BanCount.Value * 2;
+            int totalProtectsRequired = CurrentMatch.Value.Round.Value.ProtectCount.Value * 2;
 
-            TeamColour lastPickColour = CurrentMatch.Value.PicksBans.LastOrDefault()?.Team ?? TeamColour.Red;
+            TeamColour lastActionColour = CurrentMatch.Value.PicksBans.LastOrDefault()?.Team
+                                          ?? CurrentMatch.Value.Protects.LastOrDefault()?.Team
+                                          ?? TeamColour.Red;
 
             TeamColour nextColour;
-
+            bool hasAllProtects = CurrentMatch.Value.Protects.Count >= totalProtectsRequired;
             bool hasAllBans = CurrentMatch.Value.PicksBans.Count(p => p.Type == ChoiceType.Ban) >= totalBansRequired;
 
-            if (!hasAllBans)
+            ChoiceType nextMode = ChoiceType.Pick;
+
+            if (!hasAllProtects)
+            {
+                // Protect phase: switch teams every protect.
+                nextMode = ChoiceType.Protect;
+                nextColour = getOppositeTeamColour(lastActionColour);
+            }
+            else if (!hasAllBans)
             {
                 // Ban phase: switch teams every second ban.
-                nextColour = CurrentMatch.Value.PicksBans.Count % 2 == 1
-                    ? getOppositeTeamColour(lastPickColour)
-                    : lastPickColour;
+                nextMode = ChoiceType.Ban;
+                nextColour = CurrentMatch.Value.PicksBans.Count(pb => pb.Type == ChoiceType.Ban) % 2 == 1
+                    ? getOppositeTeamColour(lastActionColour)
+                    : lastActionColour;
             }
             else
             {
                 // Pick phase : switch teams every pick, except for the first pick which generally goes to the team that placed the last ban.
                 nextColour = pickType == ChoiceType.Pick
-                    ? getOppositeTeamColour(lastPickColour)
-                    : lastPickColour;
+                    ? getOppositeTeamColour(lastActionColour)
+                    : lastActionColour;
             }
 
-            setMode(nextColour, hasAllBans ? ChoiceType.Pick : ChoiceType.Ban);
+            setMode(nextColour, nextMode);
 
             TeamColour getOppositeTeamColour(TeamColour colour) => colour == TeamColour.Red ? TeamColour.Blue : TeamColour.Red;
         }
@@ -193,13 +261,24 @@ namespace osu.Game.Tournament.Screens.MapPool
                     addForBeatmap(map.Beatmap.OnlineID);
                 else
                 {
-                    var existing = CurrentMatch.Value?.PicksBans.FirstOrDefault(p => p.BeatmapID == map.Beatmap?.OnlineID);
+                    // try to remove pick first
+                    var existing = CurrentMatch.Value?.PicksBans.FirstOrDefault(p => p.BeatmapID == map.Beatmap?.OnlineID && p.Type is ChoiceType.Pick or ChoiceType.Ban);
 
                     if (existing != null)
                     {
                         CurrentMatch.Value?.PicksBans.Remove(existing);
-                        setNextMode();
                     }
+                    else // remove map protect if no pick was removed
+                    {
+                        var existingProtect = CurrentMatch.Value?.Protects.FirstOrDefault(p => p.BeatmapID == map.Beatmap?.OnlineID);
+
+                        if (existingProtect == null)
+                            return true;
+
+                        CurrentMatch.Value?.Protects.Remove(existingProtect);
+                    }
+
+                    setNextMode();
                 }
 
                 return true;
@@ -211,6 +290,7 @@ namespace osu.Game.Tournament.Screens.MapPool
         private void reset()
         {
             CurrentMatch.Value?.PicksBans.Clear();
+            CurrentMatch.Value?.Protects.Clear();
             setNextMode();
         }
 
@@ -223,16 +303,46 @@ namespace osu.Game.Tournament.Screens.MapPool
                 // don't attempt to add if the beatmap isn't in our pool
                 return;
 
-            if (CurrentMatch.Value.PicksBans.Any(p => p.BeatmapID == beatmapId))
-                // don't attempt to add if already exists.
-                return;
+            var existingProtect = CurrentMatch.Value.Protects.FirstOrDefault(p => p.BeatmapID == beatmapId);
 
-            CurrentMatch.Value.PicksBans.Add(new BeatmapChoice
+            if (existingProtect != null || CurrentMatch.Value.PicksBans.Any(p => p.BeatmapID == beatmapId))
             {
-                Team = pickColour,
-                Type = pickType,
-                BeatmapID = beatmapId
-            });
+                // only allow a protected map to be re-added as a pick
+                bool allowPick = existingProtect != null;
+
+                if (!CurrentMatch.Value.Round.Value.AllowPickingOpponentProtects.Value)
+                {
+                    // only allow if map is being **picked** and being picked by the **same team** that protected the map
+                    if (pickType != ChoiceType.Pick || pickColour != existingProtect?.Team)
+                        allowPick = false;
+                }
+
+                // don't allow picking again if already picked after protect
+                if (CurrentMatch.Value.PicksBans.Any(p => p.BeatmapID == beatmapId && p.Type == ChoiceType.Pick))
+                    allowPick = false;
+
+                if (!allowPick)
+                    return;
+            }
+
+            if (pickType == ChoiceType.Protect)
+            {
+                CurrentMatch.Value.Protects.Add(new BeatmapChoice
+                {
+                    Team = pickColour,
+                    Type = pickType,
+                    BeatmapID = beatmapId
+                });
+            }
+            else
+            {
+                CurrentMatch.Value.PicksBans.Add(new BeatmapChoice
+                {
+                    Team = pickColour,
+                    Type = pickType,
+                    BeatmapID = beatmapId
+                });
+            }
 
             setNextMode();
 

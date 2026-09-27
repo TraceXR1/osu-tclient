@@ -125,6 +125,11 @@ namespace osu.Game.Overlays.Chat
         /// </remarks>
         public Color4 UsernameColour { get; init; }
 
+        /// <summary>
+        /// Overrides the username highlight style. If unset, the sender's custom colour determines the style.
+        /// </summary>
+        public bool? UsernameInverted { get; init; }
+
         public ChatLine(Message message)
         {
             Message = message;
@@ -200,7 +205,7 @@ namespace osu.Game.Overlays.Chat
                                 Anchor = Anchor.TopRight,
                                 Margin = new MarginPadding { Horizontal = Spacing },
                                 AccentColour = UsernameColour,
-                                Inverted = !string.IsNullOrEmpty(message.Sender.Colour),
+                                Inverted = UsernameInverted ?? !string.IsNullOrEmpty(message.Sender.Colour),
                             },
                             drawableContentFlow = new LinkFlowContainer(styleMessageContent)
                             {

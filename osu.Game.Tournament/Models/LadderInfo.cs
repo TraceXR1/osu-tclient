@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using osu.Framework.Bindables;
+using osu.Framework.Graphics;
+using osu.Game.Graphics;
 using osu.Game.Rulesets;
 
 namespace osu.Game.Tournament.Models
@@ -15,6 +17,20 @@ namespace osu.Game.Tournament.Models
     [Serializable]
     public class LadderInfo
     {
+        public readonly TournamentSide RedSide = new TournamentSide("Red", new OsuColour().TeamColourRed);
+        public readonly TournamentSide BlueSide = new TournamentSide("Blue", new OsuColour().TeamColourBlue);
+
+        [JsonIgnore]
+        public readonly Bindable<Colour4> RefereeColour = new Bindable<Colour4>(Colour4.FromHex("FFD966"));
+
+        public string RefereeColourHex
+        {
+            get => RefereeColour.Value.ToHex();
+            set => RefereeColour.Value = Colour4.FromHex(value);
+        }
+
+        public TournamentSide GetSide(TeamColour colour) => colour == TeamColour.Red ? RedSide : BlueSide;
+
         public Bindable<RulesetInfo?> Ruleset = new Bindable<RulesetInfo?>();
 
         public BindableList<TournamentMatch> Matches = new BindableList<TournamentMatch>();
@@ -44,5 +60,7 @@ namespace osu.Game.Tournament.Models
         public Bindable<bool> SplitMapPoolByMods = new BindableBool(true);
 
         public Bindable<bool> DisplayTeamSeeds = new BindableBool();
+
+        public Bindable<bool> MuteUISounds = new BindableBool(true);
     }
 }
