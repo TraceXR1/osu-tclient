@@ -70,6 +70,27 @@ namespace osu.Game.Tournament.Tests.NonVisual
             });
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TestMuteUISoundsRoundTrip(bool muted)
+        {
+            var ladder = new LadderInfo { MuteUISounds = { Value = muted } };
+            string serialised = JsonConvert.SerializeObject(ladder, new JsonSerializerSettings
+            {
+                DefaultValueHandling = DefaultValueHandling.Ignore
+            });
+
+            var restored = JsonConvert.DeserializeObject<LadderInfo>(serialised)!;
+            Assert.That(restored.MuteUISounds.Value, Is.EqualTo(muted));
+        }
+
+        [Test]
+        public void TestOldBracketMutesUISoundsByDefault()
+        {
+            var ladder = JsonConvert.DeserializeObject<LadderInfo>("{}")!;
+            Assert.That(ladder.MuteUISounds.Value, Is.True);
+        }
+
         private static LadderInfo createSampleLadder()
         {
             var match = TournamentTestScene.CreateSampleMatch();

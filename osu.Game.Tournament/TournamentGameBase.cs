@@ -2,11 +2,16 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Textures;
@@ -35,6 +40,7 @@ namespace osu.Game.Tournament
         private DependencyContainer dependencies = null!;
         private FileBasedIPC ipc = null!;
         private BeatmapLookupCache beatmapCache = null!;
+        private readonly BindableDouble uiSampleMuteAdjustment = new BindableDouble();
         public event Action? SavingChanges;
         private Storage credentialStorage = null!;
         private const string credentials_filename = "tournament-oauth.json";
@@ -232,10 +238,61 @@ namespace osu.Game.Tournament
                 dependencies.CacheAs<MatchIPCInfo>(ipc = new FileBasedIPC());
                 Add(ipc);
 
+                applyUISampleMuting();
+
                 bracketLoadTaskCompletionSource.SetResult(true);
 
                 initialisationText.Expire();
             });
+        }
+
+        private void applyUISampleMuting()
+        {
+            // Skin hitsounds can share Audio.Samples, so mute only the factories for UI and keyboard samples.
+            string[] mutedPrefixes = { @"UI/", @"Keyboard/" };
+
+            ladder.MuteUISounds.BindValueChanged(muted => uiSampleMuteAdjustment.Value = muted.NewValue ? 0 : 1, true);
+
+            var mutedLookups = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (string resource in Audio.Samples.GetAvailableResources())
+            {
+                if (!mutedPrefixes.Any(p => resource.StartsWith(p, StringComparison.Ordinal)))
+                    continue;
+
+                mutedLookups.Add(Path.ChangeExtension(resource, null));
+            }
+
+            // Get() returns new wrappers; their cached factories propagate the adjustment to future playback.
+            foreach (string lookup in mutedLookups)
+                Audio.Samples.Get(lookup);
+
+            var factoriesField = Audio.Samples.GetType().GetField("factories", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (factoriesField?.GetValue(Audio.Samples) is IDictionary factories)
+            {
+                var mutedFactories = new List<AdjustableAudioComponent>();
+
+                lock (factories)
+                {
+                    foreach (DictionaryEntry entry in factories)
+                    {
+                        if (entry.Key is string name
+                            && mutedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal))
+                            && entry.Value is AdjustableAudioComponent factory)
+                        {
+                            mutedFactories.Add(factory);
+                        }
+                    }
+                }
+
+                foreach (var factory in mutedFactories)
+                    factory.AddAdjustment(AdjustableProperty.Volume, uiSampleMuteAdjustment);
+            }
+            else
+            {
+                Logger.Log("Tournament UI sample muting: could not access SampleStore.factories via reflection (framework changed?)", level: LogLevel.Important);
+            }
         }
 
         /// <summary>

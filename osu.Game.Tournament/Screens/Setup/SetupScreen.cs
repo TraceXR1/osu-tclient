@@ -213,6 +213,11 @@ namespace osu.Game.Tournament.Screens.Setup
                     Label = "Referee colour",
                     Current = LadderInfo.RefereeColour,
                 },
+                new LabelledSwitchButton
+                {
+                    Label = "Mute UI sounds",
+                    Current = LadderInfo.MuteUISounds,
+                },
             };
 
             credentials.Changed += () => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
