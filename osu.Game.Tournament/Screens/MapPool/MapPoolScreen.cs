@@ -157,8 +157,8 @@ namespace osu.Game.Tournament.Screens.MapPool
             // Observe room state even while this screen is hidden.
             matchIpc.State.BindValueChanged(state =>
             {
-                if (state.NewValue is TourneyState.WaitingForClients or TourneyState.Playing
-                    && LadderInfo.AutoProgressScreens.Value)
+                if (state.NewValue == TourneyState.Playing
+                    || (state.NewValue == TourneyState.WaitingForClients && LadderInfo.AutoProgressScreens.Value))
                     sceneManager?.SetScreen(typeof(GameplayScreen));
             }, true);
         }

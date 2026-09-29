@@ -11,6 +11,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Screens.Play.HUD
 {
@@ -22,39 +23,44 @@ namespace osu.Game.Screens.Play.HUD
         public BindableLong Team1Score = new BindableLong();
         public BindableLong Team2Score = new BindableLong();
 
+        public readonly Bindable<Colour4> Team1Colour = new Bindable<Colour4>(new OsuColour().TeamColourRed);
+        public readonly Bindable<Colour4> Team2Colour = new Bindable<Colour4>(new OsuColour().TeamColourBlue);
+
         protected MatchScoreCounter Score1Text = null!;
         protected MatchScoreCounter Score2Text = null!;
 
         private Drawable score1Bar = null!;
         private Drawable score2Bar = null!;
+        private Drawable score1StaticBar = null!;
+        private Drawable score2StaticBar = null!;
 
         private MatchScoreDiffCounter scoreDiffText = null!;
 
         [BackgroundDependencyLoader]
-        private void load(OsuColour colours)
+        private void load()
         {
             RelativeSizeAxes = Axes.X;
             AutoSizeAxes = Axes.Y;
 
             InternalChildren = new[]
             {
-                new Box
+                score1StaticBar = new Box
                 {
                     Name = "top bar red (static)",
                     RelativeSizeAxes = Axes.X,
                     Height = bar_height / 4,
                     Width = 0.5f,
-                    Colour = colours.TeamColourRed,
+                    Colour = Team1Colour.Value,
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.TopRight
                 },
-                new Box
+                score2StaticBar = new Box
                 {
                     Name = "top bar blue (static)",
                     RelativeSizeAxes = Axes.X,
                     Height = bar_height / 4,
                     Width = 0.5f,
-                    Colour = colours.TeamColourBlue,
+                    Colour = Team2Colour.Value,
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.TopLeft
                 },
@@ -64,7 +70,7 @@ namespace osu.Game.Screens.Play.HUD
                     RelativeSizeAxes = Axes.X,
                     Height = bar_height,
                     Width = 0,
-                    Colour = colours.TeamColourRed,
+                    Colour = Team1Colour.Value,
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.TopRight
                 },
@@ -74,7 +80,7 @@ namespace osu.Game.Screens.Play.HUD
                     RelativeSizeAxes = Axes.X,
                     Height = bar_height,
                     Width = 0,
-                    Colour = colours.TeamColourBlue,
+                    Colour = Team2Colour.Value,
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.TopLeft
                 },
@@ -109,6 +115,9 @@ namespace osu.Game.Screens.Play.HUD
                     Alpha = 0
                 }
             };
+
+            Team1Colour.BindValueChanged(colour => score1StaticBar.Colour = score1Bar.Colour = colour.NewValue, true);
+            Team2Colour.BindValueChanged(colour => score2StaticBar.Colour = score2Bar.Colour = colour.NewValue, true);
         }
 
         protected override void LoadComplete()
