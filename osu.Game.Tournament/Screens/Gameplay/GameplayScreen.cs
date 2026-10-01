@@ -206,8 +206,6 @@ namespace osu.Game.Tournament.Screens.Gameplay
 
                         if (LadderInfo.AutoProgressScreens.Value)
                         {
-                            const float delay_before_progression = 4000;
-
                             // if we've returned to idle and the last screen was ranking
                             // we should automatically proceed after a short delay
                             if (lastState == TourneyState.Ranking && !warmup.Value)
