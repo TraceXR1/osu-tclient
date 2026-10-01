@@ -145,10 +145,8 @@ namespace osu.Game.Tournament.Screens.Gameplay
                 return;
 
             warmup.Value = match.NewValue.Team1Score.Value + match.NewValue.Team2Score.Value == 0;
-            scheduledScreenChange?.Cancel();
         }
 
-        private ScheduledDelegate? scheduledScreenChange;
         private ScheduledDelegate? scheduledContract;
 
         private TournamentMatchScoreDisplay scoreDisplay = null!;
@@ -197,7 +195,7 @@ namespace osu.Game.Tournament.Screens.Gameplay
 
                     if (ipc.Score1.Value > ipc.Score2.Value)
                         CurrentMatch.Value.Team1Score.Value++;
-                    else
+                    else if (ipc.Score1.Value < ipc.Score2.Value)
                         CurrentMatch.Value.Team2Score.Value++;
                 }
 
@@ -215,16 +213,16 @@ namespace osu.Game.Tournament.Screens.Gameplay
                             if (lastState == TourneyState.Ranking && !warmup.Value)
                             {
                                 if (CurrentMatch.Value?.Completed.Value == true)
-                                    scheduledScreenChange = Scheduler.AddDelayed(() => { sceneManager?.SetScreen(typeof(TeamWinScreen)); }, delay_before_progression);
+                                    sceneManager?.SetScreen(typeof(TeamWinScreen));
                                 else if (CurrentMatch.Value?.Completed.Value == false)
-                                    scheduledScreenChange = Scheduler.AddDelayed(() => { sceneManager?.SetScreen(typeof(MapPoolScreen)); }, delay_before_progression);
+                                    sceneManager?.SetScreen(typeof(MapPoolScreen));
                             }
                         }
 
                         break;
 
                     case TourneyState.Ranking:
-                        scheduledContract = Scheduler.AddDelayed(contract, 10000);
+                        scheduledContract = Scheduler.AddDelayed(contract, 2000);
                         break;
 
                     default:
@@ -240,7 +238,6 @@ namespace osu.Game.Tournament.Screens.Gameplay
 
         public override void Hide()
         {
-            scheduledScreenChange?.Cancel();
             base.Hide();
         }
 
