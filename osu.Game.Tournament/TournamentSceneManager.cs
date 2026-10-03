@@ -166,6 +166,9 @@ namespace osu.Game.Tournament
 
         private Drawable? currentScreen;
         private ScheduledDelegate? scheduledHide;
+        private Type? pendingScreenType;
+        private bool chromaCollapsed;
+        private bool chromaClosing;
 
         private Drawable? temporaryScreen;
 
@@ -183,7 +186,36 @@ namespace osu.Game.Tournament
 
             var target = screens.FirstOrDefault(s => s.GetType() == screenType);
 
-            if (target == null || currentScreen == target) return;
+            if (target == null) return;
+
+            if (chromaClosing)
+            {
+                pendingScreenType = screenType == currentScreen?.GetType() ? null : screenType;
+                return;
+            }
+
+            if (currentScreen == target) return;
+
+            if (!chromaCollapsed && currentScreen is GameplayScreen gameplayScreen)
+            {
+                chromaClosing = true;
+                pendingScreenType = screenType;
+                gameplayScreen.CollapseChroma(() =>
+                {
+                    Type? nextScreen = pendingScreenType;
+                    pendingScreenType = null;
+                    chromaClosing = false;
+
+                    if (nextScreen != null)
+                    {
+                        chromaCollapsed = true;
+                        SetScreen(nextScreen);
+                    }
+                    else
+                        gameplayScreen.ExpandChroma();
+                });
+                return;
+            }
 
             if (scheduledHide?.Completed == false)
             {
@@ -194,6 +226,7 @@ namespace osu.Game.Tournament
 
             var lastScreen = currentScreen;
             currentScreen = target;
+            chromaCollapsed = false;
 
             if (currentScreen.ChildrenOfType<TourneyVideo>().FirstOrDefault()?.VideoAvailable == true)
             {

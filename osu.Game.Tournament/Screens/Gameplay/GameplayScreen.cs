@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -33,6 +34,9 @@ namespace osu.Game.Tournament.Screens.Gameplay
         private TournamentMatchChatDisplay chat { get; set; } = null!;
 
         private Drawable chroma = null!;
+        private const double chroma_open_delay = 200;
+        private const double chroma_transition_duration = 500;
+        private ScheduledDelegate? scheduledChromaOpen;
 
         [BackgroundDependencyLoader]
         private void load(MatchIPCInfo ipc)
@@ -234,13 +238,26 @@ namespace osu.Game.Tournament.Screens.Gameplay
 
         public override void Hide()
         {
+            scheduledChromaOpen?.Cancel();
             base.Hide();
         }
 
         public override void Show()
         {
+            scheduledChromaOpen?.Cancel();
+            chroma.ClearTransforms();
+            chroma.Width = 0;
             updateState();
             base.Show();
+            scheduledChromaOpen = Scheduler.AddDelayed(ExpandChroma, chroma_open_delay);
+        }
+
+        public void ExpandChroma() => chroma.ResizeWidthTo(LadderInfo.ChromaKeyWidth.Value, chroma_transition_duration, Easing.OutQuint);
+
+        public void CollapseChroma(Action completed)
+        {
+            scheduledChromaOpen?.Cancel();
+            chroma.ResizeWidthTo(0, chroma_transition_duration, Easing.InQuint).OnComplete(_ => completed());
         }
 
         private partial class ChromaArea : CompositeDrawable
