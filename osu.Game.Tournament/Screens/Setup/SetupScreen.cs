@@ -1,7 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
+
 using System.Drawing;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -15,7 +15,6 @@ using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
-using osu.Game.Overlays.Settings;
 using osu.Game.Rulesets;
 using osu.Game.Tournament.IPC;
 using osu.Game.Tournament.Models;
@@ -186,87 +185,68 @@ namespace osu.Game.Tournament.Screens.Setup
                     Description = "Team seeds will display alongside each team at the top in gameplay/map pool screens.",
                     Current = LadderInfo.DisplayTeamSeeds,
                 },
-                new LabelledTextBox
+                new LabelledSwitchButton
                 {
-                    Label = "Left side name",
-                    Current = LadderInfo.RedSide.Name,
-                    SelectAllOnFocus = true,
+                    Label = "Mute UI sounds",
+                    Description = "Disables all UI sounds in the tournament client.",
+                    Current = LadderInfo.MuteUISounds,
                 },
-                new SideColourControl
+                new GridContainer
                 {
-                    Label = "Left side colour",
-                    Current = LadderInfo.RedSide.Colour,
-                },
-                new LabelledTextBox
-                {
-                    Label = "Right side name",
-                    Current = LadderInfo.BlueSide.Name,
-                    SelectAllOnFocus = true,
-                },
-                new SideColourControl
-                {
-                    Label = "Right side colour",
-                    Current = LadderInfo.BlueSide.Colour,
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    ColumnDimensions = new[]
+                    {
+                        new Dimension(GridSizeMode.Relative, 0.5f),
+                        new Dimension(GridSizeMode.Relative, 0.5f),
+                    },
+                    RowDimensions = new[]
+                    {
+                        new Dimension(GridSizeMode.AutoSize),
+                    },
+                    Content = new[]
+                    {
+                        new Drawable[]
+                        {
+                            new Container
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Padding = new MarginPadding { Right = 5 },
+                                Child = new TeamCustomization
+                                {
+                                    Label = "Left side team",
+                                    Description = "Customize the name and colour of the left side team.",
+                                    CurrentText = LadderInfo.RedSide.Name,
+                                    CurrentColour = LadderInfo.RedSide.Colour,
+                                }
+                            },
+                            new Container
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Padding = new MarginPadding { Left = 5 },
+                                Child = new TeamCustomization
+                                {
+                                    Label = "Right side team",
+                                    Description = "Customize the name and colour of the right side team.",
+                                    CurrentText = LadderInfo.BlueSide.Name,
+                                    CurrentColour = LadderInfo.BlueSide.Colour,
+                                }
+                            },
+                        }
+                    }
                 },
                 new SideColourControl
                 {
                     Label = "Referee colour",
+                    Description = "Customize the colour of referee's nickname in the chat.",
                     Current = LadderInfo.RefereeColour,
-                },
-                new LabelledSwitchButton
-                {
-                    Label = "Mute UI sounds",
-                    Current = LadderInfo.MuteUISounds,
+                    ControlWidth = 220,
                 },
             };
 
             credentials.Changed += () => api.SetOAuthCredentials(credentials.ClientId, credentials.ClientSecret);
-        }
-
-        private partial class SideColourControl : LabelledComponent<SettingsColour.ColourControl, Colour4>
-        {
-            public SideColourControl()
-                : base(true)
-            {
-            }
-
-            protected override SettingsColour.ColourControl CreateComponent() => new SettingsColour.ColourControl();
-        }
-
-        private partial class ApiCredentialsControl : ActionableInfo
-        {
-            public string ClientId => clientId!.Current.Value;
-            public string ClientSecret => clientSecret!.Current.Value;
-            public event Action? Changed;
-
-            private FormPasswordTextBox clientId = null!;
-            private FormPasswordTextBox clientSecret = null!;
-
-            public ApiCredentialsControl(string id, string secret)
-            {
-                clientId = new FormPasswordTextBox { Caption = "Client ID", Current = new Bindable<string>(id) };
-                clientSecret = new FormPasswordTextBox { Caption = "Client Secret", Current = new Bindable<string>(secret) };
-                FlowContainer.Direction = FillDirection.Horizontal;
-                FlowContainer.Remove(Button, false);
-                FlowContainer.Children = new Drawable[]
-                {
-                    new Container { Width = 180, AutoSizeAxes = Axes.Y, Child = clientId },
-                    new Container { Width = 280, AutoSizeAxes = Axes.Y, Child = clientSecret },
-                    Button,
-                };
-                Button.Anchor = Anchor.CentreLeft;
-                Button.Origin = Anchor.CentreLeft;
-                clientId.Current.BindValueChanged(_ => updateCredentials());
-                clientSecret.Current.BindValueChanged(_ => updateCredentials());
-                updateCredentials();
-            }
-
-            private void updateCredentials()
-            {
-                Button.Enabled.Value = !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
-                Changed?.Invoke();
-            }
-
         }
 
         private const float aspect_ratio = 16f / 9f;

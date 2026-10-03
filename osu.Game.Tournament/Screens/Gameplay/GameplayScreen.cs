@@ -187,8 +187,6 @@ namespace osu.Game.Tournament.Screens.Gameplay
         {
             try
             {
-                scheduledScreenChange?.Cancel();
-
                 if (State.Value == TourneyState.Ranking)
                 {
                     if (warmup.Value || CurrentMatch.Value == null) return;
