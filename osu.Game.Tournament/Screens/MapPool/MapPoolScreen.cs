@@ -8,7 +8,6 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
-using osu.Framework.Threading;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Tournament.Components;
 using osu.Game.Tournament.IPC;
@@ -37,8 +36,6 @@ namespace osu.Game.Tournament.Screens.MapPool
         private OsuButton buttonBluePick = null!;
         private OsuButton buttonRedProtect = null!;
         private OsuButton buttonBlueProtect = null!;
-
-        private ScheduledDelegate? scheduledScreenChange;
 
         private MatchIPCInfo matchIpc = null!;
 
@@ -345,21 +342,6 @@ namespace osu.Game.Tournament.Screens.MapPool
             }
 
             setNextMode();
-
-            if (LadderInfo.AutoProgressScreens.Value)
-            {
-                if (pickType == ChoiceType.Pick && CurrentMatch.Value.PicksBans.Any(i => i.Type == ChoiceType.Pick))
-                {
-                    scheduledScreenChange?.Cancel();
-                    scheduledScreenChange = Scheduler.AddDelayed(() => { sceneManager?.SetScreen(typeof(GameplayScreen)); }, 10000);
-                }
-            }
-        }
-
-        public override void Hide()
-        {
-            scheduledScreenChange?.Cancel();
-            base.Hide();
         }
 
         protected override void CurrentMatchChanged(ValueChangedEvent<TournamentMatch?> match)
