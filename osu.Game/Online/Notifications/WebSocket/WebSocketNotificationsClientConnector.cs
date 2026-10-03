@@ -7,7 +7,6 @@ using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Game.Online.API;
-using osu.Game.Online.API.Requests;
 
 namespace osu.Game.Online.Notifications.WebSocket
 {
@@ -29,11 +28,7 @@ namespace osu.Game.Online.Notifications.WebSocket
 
         protected override async Task<PersistentEndpointClient> BuildConnectionAsync(CancellationToken cancellationToken)
         {
-            var req = new GetNotificationsRequest();
-            // must use `PerformAsync()`, since we may not be fully online yet
-            // (see `APIState.RequiresSecondFactorAuth` - in this state queued requests will not execute).
-            await api.PerformAsync(req).ConfigureAwait(false);
-            string endpoint = req.Response!.Endpoint;
+            const string endpoint = "wss://notify.ppy.sh";
 
             ClientWebSocket socket = new ClientWebSocket();
             socket.Options.SetRequestHeader(@"Authorization", @$"Bearer {api.AccessToken}");

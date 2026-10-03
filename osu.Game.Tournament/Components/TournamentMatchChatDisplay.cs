@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -11,6 +12,9 @@ using osu.Framework.Threading;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.Chat;
+using osu.Game.Online.Notifications.WebSocket;
+using osu.Game.Online.Notifications.WebSocket.Events;
+using osu.Game.Online.Notifications.WebSocket.Requests;
 using osu.Game.Overlays.Chat;
 using osu.Game.Tournament.IPC;
 using osu.Game.Tournament.Models;
@@ -20,10 +24,13 @@ namespace osu.Game.Tournament.Components
     public partial class TournamentMatchChatDisplay : StandAloneChatDisplay
     {
         private readonly Bindable<string> channelName = new Bindable<string>();
+        private readonly IBindable<APIState> apiState = new Bindable<APIState>();
 
         private IAPIProvider? api;
-        private ScheduledDelegate? poll;
+        private INotificationsClient? notificationsClient;
+        private ScheduledDelegate? scheduledStart;
         private Channel? currentChannel;
+        private bool disposed;
 
         [Resolved]
         private LadderInfo ladderInfo { get; set; } = null!;
@@ -42,41 +49,132 @@ namespace osu.Game.Tournament.Components
         private void load(MatchIPCInfo ipc, IAPIProvider api)
         {
             this.api = api;
+            notificationsClient = api.NotificationsClient;
+            notificationsClient.MessageReceived += onSocketMessage;
+            notificationsClient.IsConnected.ValueChanged += onConnectionChanged;
+            if (notificationsClient.IsConnected.Value)
+                Schedule(() => _ = startChat());
 
             channelName.BindTo(ipc.ChatChannel);
             channelName.BindValueChanged(c =>
             {
                 Logger.Log($"Tournament IPC chat channel changed from '{c.OldValue}' to '{c.NewValue}'", LoggingTarget.Network);
-                if (long.TryParse(c.OldValue, out long oldChannelId) && oldChannelId > 0)
-                {
-                    poll?.Cancel();
-                }
+                currentChannel = null;
+                Channel.Value = null;
 
                 if (long.TryParse(c.NewValue, out long newChannelId) && newChannelId > 0)
                 {
                     var channel = new Channel
                     {
                         Id = newChannelId,
-                        Type = ChannelType.Public
+                        Type = ChannelType.Multiplayer
                     };
 
-                    Logger.Log($"Joining tournament chat channel {newChannelId} as user {api.LocalUser.Value.Id}", LoggingTarget.Network);
+                    Logger.Log($"Displaying tournament multiplayer chat channel {newChannelId}", LoggingTarget.Network);
                     currentChannel = channel;
                     Channel.Value = channel;
-                    poll = Scheduler.AddDelayed(pollMessages, 5000, true);
+                    if (apiState.Value == APIState.Online)
+                        fetchInitialMessages(channel);
                 }
+            }, true);
+
+            apiState.BindTo(api.State);
+            apiState.BindValueChanged(state =>
+            {
+                if (state.NewValue == APIState.Online)
+                    Schedule(() =>
+                    {
+                        if (currentChannel is Channel channel)
+                            fetchInitialMessages(channel);
+                    });
             }, true);
         }
 
-        private void pollMessages()
+        private void onConnectionChanged(ValueChangedEvent<bool> connection)
         {
-            if (api == null || currentChannel == null || !api.IsLoggedIn)
+            Schedule(() =>
+            {
+                scheduledStart?.Cancel();
+
+                if (connection.NewValue && !disposed)
+                    _ = startChat();
+            });
+        }
+
+        private async Task startChat()
+        {
+            if (notificationsClient?.IsConnected.Value != true || disposed)
                 return;
 
-            var request = new GetMessagesRequest(currentChannel);
-            request.Success += messages => currentChannel.AddNewMessages(messages.ToArray());
-            request.Failure += error => Logger.Error(error, $"Failed to poll tournament chat channel {currentChannel.Id}");
+            try
+            {
+                await notificationsClient.SendAsync(new StartChatRequest()).ConfigureAwait(false);
+                Logger.Log("Listening to tournament chat websocket messages", LoggingTarget.Network);
+            }
+            catch (Exception error)
+            {
+                Logger.Error(error, "Failed to start tournament chat websocket subscription");
+                Schedule(() =>
+                {
+                    if (!disposed && notificationsClient?.IsConnected.Value == true)
+                        scheduledStart = Scheduler.AddDelayed(() => _ = startChat(), 5000);
+                });
+            }
+        }
+
+        private void onSocketMessage(SocketMessage socketMessage)
+        {
+            if (socketMessage.Event != "chat.message.new" || socketMessage.Data == null)
+                return;
+
+            NewChatMessageData? data;
+
+            try
+            {
+                data = socketMessage.Data.ToObject<NewChatMessageData>();
+            }
+            catch (Exception error)
+            {
+                Logger.Error(error, "Failed to read tournament chat websocket message");
+                return;
+            }
+
+            if (data?.Messages == null)
+                return;
+
+            Schedule(() =>
+            {
+                if (currentChannel is Channel channel)
+                    channel.AddNewMessages(data.Messages.Where(message => message.ChannelId == channel.Id).ToArray());
+            });
+        }
+
+        private void fetchInitialMessages(Channel channel)
+        {
+            if (api == null || !api.IsLoggedIn)
+                return;
+
+            var request = new GetMessagesRequest(channel);
+            request.Success += messages => Schedule(() =>
+            {
+                if (currentChannel == channel)
+                    channel.AddNewMessages(messages.ToArray());
+            });
+            request.Failure += error => Logger.Error(error, $"Failed to load tournament chat channel {channel.Id}");
             api.Queue(request);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            scheduledStart?.Cancel();
+            disposed = true;
+            apiState.UnbindAll();
+            if (notificationsClient != null)
+            {
+                notificationsClient.MessageReceived -= onSocketMessage;
+                notificationsClient.IsConnected.ValueChanged -= onConnectionChanged;
+            }
+            base.Dispose(isDisposing);
         }
 
         public void Expand() => this.FadeIn(300);
